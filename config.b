@@ -22,7 +22,7 @@
 :-  also: DJGPP-nasm crashes when using protected mode Borland's make
 :-**********************************************************************
 
-set XNASM=c:\bin\nasm16
+set XNASM=nasm
 
 :**********************************************************************
 :- define your COMPILER type here, pick one of them
