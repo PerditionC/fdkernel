@@ -27,7 +27,7 @@ MATH_EXTRACT=*aflmul *aFlshl *aFNaulsh *aFNauldi *aFulrem *aFulshr *aFuldiv *aFl
 MATH_INSERT= +aflmul +aFlshl +aFNaulsh +aFNauldi +aFulrem +aFulshr +aFuldiv +aFlrem +aFldiv
 
 TARGETOPT=
-!if $(XCPU) == 186    
+!if $(XCPU) == 186
 TARGETOPT=-G1
 !endif
 !if $(XCPU) == 386
