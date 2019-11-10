@@ -45,34 +45,54 @@ segment HMA_TEXT
 ;
 ;       Special call for switching processes
 ;
-;       void exec_user(iregs far *irp, int disable_a20)
+;       void exec_user(exec_regs FAR * irp)
 ;
                 global  _exec_user
 _exec_user:
-
-;                PUSH$ALL
-;                mov     ds,[_DGROUP_]
-;                cld
-;
-;
-;
                 pop     ax		      ; return address (unused)
 
                 pop     bp		      ; irp (user ss:sp)
-                pop	si
-		pop	cx		      ; disable A20?
-		or	cx,cx
-		jz	do_iret
+                pop     si
 
+;               pop     cx		      ; disable A20?
+;               or      cx,cx
+;               jz      do_iret
+;
+;               cli
+;               mov     ss,si
+;               mov     sp,bp         ; set-up user stack
+;               sti
+;
+;               POP$ALL
+;               extern _ExecUserDisableA20
+;               jmp DGROUP:_ExecUserDisableA20
+;do_iret:
                 cli
                 mov     ss,si
-                mov     sp,bp                   ; set-up user stack
-                sti
+                mov     sp,bp
+;    /* start allocating REGs (as in MS-DOS - some demos expect them so --LG) */
+;    /* see http://www.beroset.com/asm/showregs.asm */
+                pop     bx
+                mov     cx,0ffh
+                mov     si,[bp + 6] ; IP
+                pop     di
+                pop     ax
+                mov     ds,ax
+                mov     es,ax
+                mov     dx,ax
+                mov     ax,bx
+                mov     bp,091eh ;this is more or less random but some programs
+                                 ;expect 0x9 in the high byte of BP!! */
+                iret
+
+;       void ret_user(iregs FAR *irp)
 ;
-                POP$ALL
-                extern _ExecUserDisableA20
-                jmp DGROUP:_ExecUserDisableA20
-do_iret:
+                global  _ret_user
+_ret_user:
+                pop     ax		      ; return address (unused)
+
+                pop     bp		      ; irp (user ss:sp)
+                pop     si
                 extern _int21_iret
                 jmp _int21_iret
 

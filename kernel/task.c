@@ -308,26 +308,24 @@ STATIC int load_transfer(UWORD ds, exec_blk *exp, UWORD fcbcode, COUNT mode)
   
   if (mode == LOADNGO)
   {
-    iregs FAR *irp;
-    
-    /* build the user area on the stack                     */
-    irp = (iregs FAR *)(exp->exec.stack - sizeof(iregs));
-    
-    /* start allocating REGs (as in MS-DOS - some demos expect them so --LG) */
-    /* see http://www.beroset.com/asm/showregs.asm */
-    irp->DX = irp->ES = irp->DS = ds;
+    exec_regs FAR *irp;
+
+    /* build the user area on the stack                      */
+    irp = (exec_regs FAR *)(exp->exec.stack - sizeof(exec_regs));
+
+    /* see exec_user, limited to 12 bytes stack for calling, */
+	/* additional registers set, but exec_user does not      */
+	/* modify a20 due to limited stack                       */
+    irp->DS = ds;
     irp->CS = FP_SEG(exp->exec.start_addr);
-    irp->SI = irp->IP = FP_OFF(exp->exec.start_addr);
+    irp->IP = FP_OFF(exp->exec.start_addr);
     irp->DI = FP_OFF(exp->exec.stack);
-    irp->BP = 0x91e; /* this is more or less random but some programs
-                        expect 0x9 in the high byte of BP!! */
-    irp->AX = irp->BX = fcbcode;
-    irp->CX = 0xFF;
+    irp->AX = fcbcode;
     irp->FLAGS = 0x200;
     
     if (InDOS)
       --InDOS;
-    exec_user(irp, 1);
+    exec_user(irp);
     
     /* We should never be here          
        fatal("KERNEL RETURNED!!!");                    */
@@ -550,7 +548,7 @@ VOID return_user(void)
 
   if (InDOS)
     --InDOS;
-  exec_user((iregs FAR *) q->ps_stack, 0);
+  ret_user((iregs FAR *) q->ps_stack);
 }
 
 COUNT DosExeLoader(BYTE FAR * namep, exec_blk * exp, COUNT mode, COUNT fd)
