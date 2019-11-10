@@ -522,10 +522,13 @@ size_t read_line_handle(int sft_idx, size_t n, char FAR * bp)
   if (inputptr == NULL)
   {
     /* can we reuse kb_buf or was it overwritten? */
-    if (kb_buf.kb_size != LINEBUFSIZECON)
+	/* in kernel.asm we only allocate 128 bytes for kb_buf */
+	/* so only 126 bytes are actually available, -2 bytes  */
+	/* for sizeof(kb_count) + sizeof(kb_size)              */
+    if (kb_buf.kb_size != 126 /*LINEBUFSIZECON*/)
     {
       kb_buf.kb_count = 0;
-      kb_buf.kb_size = LINEBUFSIZECON;
+      kb_buf.kb_size = 126 /*LINEBUFSIZECON*/;
     }
     read_line(sft_idx, sft_idx, &kb_buf);
     kb_buf.kb_buf[kb_buf.kb_count + 1] = echo_char(LF, sft_idx);
