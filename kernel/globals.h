@@ -51,6 +51,10 @@
 #include "buffer.h"
 #include "dcb.h"
 #include "xstructs.h"
+#include "kconfig.h"
+#include "lol.h"
+#include "nls.h"
+#include "dyn.h"
 
 /* fatfs.c */
 #ifdef WITHFAT32

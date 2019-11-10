@@ -30,6 +30,8 @@
 /* one byte alignment */
 #include <algnbyte.h>
 
+#ifndef NLS_H
+#define NLS_H
 /*
  *	Description of the organization of NLS information -- 2000/02/13 ska
  *
@@ -632,4 +634,5 @@ struct nlsCSys_loadPackage {
            _a_lot_ of noise. */
 /*& #define NLS_DEBUG */
 
+#endif
 #endif

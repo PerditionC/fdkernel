@@ -37,11 +37,10 @@ additionally:
 */
 #include "portab.h"
 #include "init-mod.h"
+#include "dyn.h"
 #include "dyndata.h"
 #include "debug.h"
 
-
-/*extern struct DynS FAR Dyn;*/
 
 #ifndef __TURBOC__
 extern struct DynS DOSFAR ASM Dyn;
