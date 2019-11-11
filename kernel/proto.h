@@ -276,7 +276,7 @@ COUNT DosSetCountry(UWORD cntry);
 COUNT DosGetCodepage(UWORD * actCP, UWORD * sysCP);
 COUNT DosSetCodepage(UWORD actCP, UWORD sysCP);
 VOID FAR *DosGetDBCS(void);
-UWORD ASMCFUNC syscall_MUX14(DIRECT_IREGS);
+UWORD ASMCFUNC syscall_MUX14(iregs FAR * regs);
 
 /* prf.c */
 #ifdef DEBUG
@@ -370,17 +370,20 @@ COUNT truename(const char FAR * src, char * dest, COUNT t);
 
 /* network.c */
 int network_redirector(unsigned cmd);
-int network_redirector_fp(unsigned cmd, void far *s);
-long ASMPASCAL network_redirector_mx(unsigned cmd, void far *s, void *arg);
+int network_redirector_fp(unsigned cmd, void FAR *s);
+DWORD ASMPASCAL network_redirector_mx(UWORD cmd, void FAR *s, /* UWORD */ void * arg);
+BYTE remote_lock_unlock(void FAR *sft, BYTE unlock, struct remote_lock_unlock FAR *arg);
+BYTE remote_qualify_filename(char FAR *dst, const char FAR *src);
 #define remote_rw(cmd,s,arg) network_redirector_mx(cmd, s, (void *)arg)
-#define remote_getfree(s,d) (int)network_redirector_mx(REM_GETSPACE, s, d)
-#define remote_lseek(s,new_pos) network_redirector_mx(REM_LSEEK, s, &new_pos)
+BYTE remote_getfree(void FAR *cds, void FAR *dst);
+UDWORD remote_lseek(void FAR *sft, DWORD new_pos);
+UWORD remote_getfattr(void);
 #define remote_setfattr(attr) (int)network_redirector_mx(REM_SETATTR, NULL, (void *)attr)
 #define remote_printredir(dx,ax) (int)network_redirector_mx(REM_PRINTREDIR, MK_FP(0,dx),(void *)ax)
-#define QRemote_Fn(d,s) (int)network_redirector_mx(REM_FILENAME, d, (void *)&s)
+#define QRemote_Fn(d,s) remote_qualify_filename(d, s)
 
-UWORD get_machine_name(BYTE FAR * netname);
-VOID set_machine_name(BYTE FAR * netname, UWORD name_num);
+UWORD get_machine_name(char FAR * netname);
+VOID set_machine_name(const char FAR * netname, UWORD name_num);
 
 /* procsupt.asm */
 VOID ASMCFUNC /* NORETURN */ exec_user(exec_regs FAR * irp);
@@ -398,3 +401,7 @@ VOID ASMCFUNC /* NORETURN */ ret_user(iregs FAR * irp);
 
 #define ASSERT_CONST(x) { typedef struct { char _xx[x ? 1 : -1]; } xx ; }
 
+UWORD ASMPASCAL init_call_intr(WORD nr, iregs * rp);
+UWORD ASMPASCAL call_intr(WORD nr, iregs FAR * rp);
+VOID ASMPASCAL call_intr_func(void FAR * ptr, iregs FAR * rp);
+extern void FAR *prev_int21_handler;

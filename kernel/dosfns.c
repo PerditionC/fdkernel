@@ -84,7 +84,7 @@ extern int ASMPASCAL
 
 /* /// End of additions for SHARE.  - Ron Cemer */
 
-STATIC int remote_lock_unlock(sft FAR *sftp,    /* SFT for file */
+STATIC int do_remote_lock_unlock(sft FAR *sftp,    /* SFT for file */
                              unsigned long ofs, /* offset into file */
                              unsigned long len, /* length (in bytes) of region to lock or unlock */
                              int unlock);       /* one to unlock; zero to lock */
@@ -1148,7 +1148,7 @@ COUNT DosGetFattr(BYTE FAR * name)
   set_fcbname();
 
   if (result & IS_NETWORK)
-    return network_redirector(REM_GETATTRZ);
+    return remote_getfattr();
 
   if (result & IS_DEVICE)
     return DE_FILENOTFND;
@@ -1282,7 +1282,7 @@ COUNT DosLockUnlock(COUNT hndl, LONG pos, LONG len, COUNT unlock)
     return DE_INVLDHNDL;
 
   if (s->sft_flags & SFT_FSHARED)
-    return remote_lock_unlock(s, pos, len, unlock);
+    return do_remote_lock_unlock(s, pos, len, unlock);
 
   /* Invalid function unless SHARE is installed or remote. */
   if (!IsShareInstalled(FALSE))
@@ -1410,19 +1410,14 @@ COUNT DosTruename(const char FAR *src, char FAR *dest)
   return rc;
 }
 
-STATIC int remote_lock_unlock(sft FAR *sftp,     /* SFT for file */
+STATIC int do_remote_lock_unlock(sft FAR *sftp,     /* SFT for file */
                               unsigned long ofs, /* offset into file */
                               unsigned long len, /* length (in bytes) of region to lock or unlock */
                               int unlock)
                                  /* one to unlock; zero to lock */
 {
-  struct
-  {
-    unsigned long ofs, len;
-    int unlock;
-  } param_block;
+  struct remote_lock_unlock param_block;
   param_block.ofs = ofs;
   param_block.len = len;
-  param_block.unlock = unlock;
-  return (int)network_redirector_mx(REM_LOCK, sftp, &param_block);
+  return remote_lock_unlock(sftp, unlock, &param_block);
 }

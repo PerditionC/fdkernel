@@ -31,16 +31,23 @@
 
 segment	HMA_TEXT
             extern _cu_psp
-            extern _HaltCpuWhileIdle
             extern _syscall_MUX14
 
             extern _DGROUP_
 
                 global  reloc_call_int2f_handler
 reloc_call_int2f_handler:
-                sti                             ; Enable interrupts
-                cmp     ah,11h                  ; Network interrupt?
-                jne     Int2f3                  ; No, continue
+                ; see IBM interrupt sharing protocol
+                jmp hdlr2f
+                global  _prev_int2f_handler
+_prev_int2f_handler:
+                dd 0
+                dw 0x424B
+                db 0
+                jmp rst2f
+                times 7 db 0
+rst2f:
+;               retf
 Int2f1:
                 or      al,al                   ; Installation check?
                 jz      FarTabRetn              ; yes, just return
@@ -53,6 +60,10 @@ Int2f2:
 FarTabRetn:
                 retf    2                       ; Return far
 
+hdlr2f:
+                sti                             ; Enable interrupts
+                cmp     ah,11h                  ; Network interrupt?
+                je      Int2f?prev              ; Yes, try hooked handler
 Int2f3:
                 cmp     ah,12h
                 je      IntDosCal               ; Dos Internal calls
@@ -82,16 +93,19 @@ Check4Share:
                 cmp     ah,08h
                 je      DriverSysCal            ; DRIVER.SYS calls
                 cmp     ah,14h                  ; NLSFUNC.EXE interrupt?
-                jne     Int2f?iret              ; yes, do installation check
+                jne     Int2f?prev              ; no, go out
 Int2f?14:      ;; MUX-14 -- NLSFUNC API
                ;; all functions are passed to syscall_MUX14
                push bp                 ; Preserve BP later on
                Protect386Registers
                PUSH$ALL
+               mov bp, sp              ; Save pointer to iregs struct
+               push ss
+               push bp                 ; Pass pointer to iregs struct to C
                mov ds, [cs:_DGROUP_]   ; ensure DS=DGROUP for C code
                call _syscall_MUX14
-               pop bp                  ; Discard incoming AX
-               push ax                 ; Correct stack for POP$ALL
+               add sp, 6               ; Remove SS,SP and old AX
+               push ax                 ; Save return value for POP$ALL
                POP$ALL
                Restore386Registers
                mov bp, sp
@@ -102,10 +116,13 @@ Int2f?14:      ;; MUX-14 -- NLSFUNC API
                and BYTE [bp-6], 0feh   ; clear carry as no error condition
                pop bp
                iret
-Int2f?14?1:        or BYTE [bp-6], 1
+Int2f?14?1:
+               or BYTE [bp-6], 1
                pop bp
 Int2f?iret:
                iret
+Int2f?prev:
+               jmp far [cs:_prev_int2f_handler]
 
 ; DRIVER.SYS calls - now only 0803.
 ; Int 2Fh MUX AH=08h - DRIVER.SYS hook
@@ -329,29 +346,7 @@ SHARE_LOCK_UNLOCK:
 ; sumtimes return data *ptr is the push stack word
 ;
 
-remote_lseek:   ; arg is a pointer to the long seek value
-                mov     bx, cx
-                mov     dx, [bx]
-                mov     cx, [bx+2]
-                ; "fall through"
-
-remote_getfattr:        
-                clc                    ; set to succeed
-                int     2fh
-                jc      ret_neg_ax
-                jmp     short ret_int2f
-
-remote_lock_unlock:
-		mov	dx, cx   	; parameter block (dx) in arg
-		mov	bx, cx
-		mov	bl, [bx + 8]	; unlock or not
-		mov	cx, 1
-		int	0x2f
-		jnc	ret_set_ax_to_carry
-		mov	ah, 0
-                jmp     short ret_neg_ax
-
-;long ASMPASCAL network_redirector_mx(unsigned cmd, void far *s, void *arg)
+;DWORD ASMPASCAL network_redirector_mx(UWORD cmd, void FAR *s, UWORD /* void * */ arg)
                 global NETWORK_REDIRECTOR_MX
 NETWORK_REDIRECTOR_MX:
                 pop     bx             ; ret address
@@ -362,26 +357,16 @@ call_int2f:
                 push    bp
                 push    si
                 push    di
-                cmp     al, 0fh
-                je      remote_getfattr
 
                 mov     di, dx         ; es:di -> s and dx is used for 1125!
                 cmp     al, 08h
                 je      remote_rw
                 cmp     al, 09h
                 je      remote_rw
-                cmp     al, 0ah
-                je      remote_lock_unlock
-                cmp     al, 21h
-                je      remote_lseek
                 cmp     al, 22h
                 je      remote_process_end
-                cmp     al, 23h
-                je      qremote_fn
 
                 push    cx             ; arg
-                cmp     al, 0ch
-                je      remote_getfree
                 cmp     al, 1eh
                 je      remote_print_doredir
                 cmp     al, 1fh
@@ -406,13 +391,13 @@ ret_set_ax_to_cx:                      ; ext_open or rw -> status from CX in AX
                 jmp     short ret_int2f
 
 remote_print_doredir:                  ; di points to an lregs structure
-                mov     es,[di+0xe]
-                mov     bx,[di+2]
-                mov     cx,[di+4]
-                mov     dx,[di+6]
-                mov     si,[di+8]
-                lds     di,[di+0xa]
-
+                push word [es:di+0xe]  ; es
+                mov     bx,[es:di+2]
+                mov     cx,[es:di+4]
+                mov     dx,[es:di+6]
+                mov     si,[es:di+8]
+                lds     di,[es:di+0xa]
+                pop     es
                 clc                     ; set to succeed
                 int     2fh
                 pop     bx              ; restore stack and ds=ss
@@ -422,17 +407,6 @@ remote_print_doredir:                  ; di points to an lregs structure
 ret_set_ax_to_carry:                    ; carry => -1 else 0 (SUCCESS)
                 sbb     ax, ax
                 jmp     short ret_int2f
-
-remote_getfree:
-                clc                     ; set to succeed
-                int     2fh
-                pop     di              ; retrieve pushed pointer arg
-                jc      ret_set_ax_to_carry
-                mov     [di],ax
-                mov     [di+2],bx
-                mov     [di+4],cx
-                mov     [di+6],dx
-                jmp     short ret_set_ax_to_carry
 
 remote_rw:
                 clc                    ; set to succeed
@@ -444,11 +418,6 @@ ret_min_dx_ax:  neg     ax
                 cwd
                 jmp     short ret_int2f
                 
-qremote_fn:
-                mov     bx, cx
-                lds     si, [bx]
-                jmp     short int2f_restore_ds
-
 remote_process_end:                   ; Terminate process
                 mov     ds, [_cu_psp]
 int2f_restore_ds:

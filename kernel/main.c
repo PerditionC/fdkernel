@@ -236,12 +236,15 @@ void setvec(unsigned char intno, intvec vector)
 #endif
 
 
+extern void FAR *prev_int21_handler;
+extern void FAR *prev_int2f_handler;
+
 STATIC void setup_int_vectors(void)
 {
   static struct vec
   {
     unsigned char intno;
-    size_t handleroff;
+    UWORD handleroff;
   } vectors[] =
     {
       /* all of these are in the DOS DS */
@@ -264,6 +267,7 @@ STATIC void setup_int_vectors(void)
     };
   struct vec *pvec;
   struct lowvec FAR *plvec;
+  void FAR *old_vec;
   int i;
 
   HaltCpuWhileIdle = 0;
@@ -272,7 +276,19 @@ STATIC void setup_int_vectors(void)
   /* also store default 13h handler, may be replaced at later time, e.g. by Windows */
   for (plvec = intvec_table; plvec < intvec_table + 6; plvec++)
     plvec->isv = getvec(plvec->intno);
-  
+
+  /* support interrupt chaining protocol - default as empty handler */
+  old_vec = getvec(0x21);
+  if (old_vec)
+    prev_int21_handler = old_vec;
+  else
+    prev_int21_handler = empty_handler;
+  old_vec = getvec(0x2f);
+  if (old_vec)
+    prev_int2f_handler = old_vec;
+  else
+    prev_int2f_handler = empty_handler;
+
   /* initialize int vectors to known do nothing handler */  
   for (i = 0x23; i <= 0x3f; i++)
     setvec(i, empty_handler);

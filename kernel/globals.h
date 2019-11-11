@@ -238,7 +238,6 @@ extern struct dhdr FAR * ASM syscon;/* console device                       */
 extern WORD ASM maxsecsize;         /* largest sector size in use (can use) */
 extern struct buffer
 FAR *ASM firstbuf;                  /* head of buffers linked list          */
-enum {LOC_CONV=0, LOC_HMA=1};
 extern unsigned char ASM bufloc;    /* 0=conv, 1=HMA                        */
 extern void far * ASM deblock_buf;  /* pointer to workspace buffer      */
 GLOBAL char FAR *firstAvailableBuf;

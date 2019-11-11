@@ -212,6 +212,19 @@ reloc_call_int20_handler:
 ;       int21_handler(iregs UserRegs)
 ;
 reloc_call_int21_handler:
+                ; see IBM interrupt sharing protocol
+                jmp hdlr21
+                global  _prev_int21_handler
+_prev_int21_handler:
+                dd 0
+                dw 0x424B
+                db 0
+                jmp rst21
+                times 7 db 0
+rst21:
+                retf
+hdlr21:
+
 ;%define OEMHANDLER  ; enable OEM hook, mostly OEM DOS 2.x, maybe through OEM 6.x
 %ifdef OEMHANDLER
                 extern _OemHook21

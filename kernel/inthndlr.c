@@ -387,13 +387,15 @@ VOID ASMCFUNC int21_service(iregs FAR * r)
   long lrc;
   lregs lr; /* 8 local registers (ax, bx, cx, dx, si, di, ds, es) */
 
+  psp FAR *psp = MK_FP(cu_psp, 0);
+  /* iregs FAR *user_stack = (iregs FAR *)psp->ps_stack; */
+  psp->ps_stack = (BYTE FAR *) r;
+
 #define FP_DS_DX (MK_FP(lr.DS, lr.DX))
 #define FP_ES_DI (MK_FP(lr.ES, lr.DI))
 
 #define CLEAR_CARRY_FLAG()  r->FLAGS &= ~FLG_CARRY
 #define SET_CARRY_FLAG()    r->FLAGS |= FLG_CARRY
-
-  ((psp FAR *) MK_FP(cu_psp, 0))->ps_stack = (BYTE FAR *) r;
 
   fmemcpy(&lr, r, sizeof(lregs) - 4);
   lr.DS = r->DS;
@@ -607,10 +609,7 @@ dispatch:
       break;
 
     default:
-#ifdef DEBUG
-      printf("Unsupported INT21 AH = 0x%x, AL = 0x%x.\n", lr.AH, lr.AL);
-#endif
-      /* Fall through. */
+      goto unsupp;
 
       /* CP/M compatibility functions                                 */
     case 0x18:
@@ -1470,7 +1469,7 @@ dispatch:
 
       /* Get/Set Serial Number */
     case 0x69:
-      rc = (lr.BL == 0 ? default_drive : lr.BL - 1);
+      rc = (lr.BL == 0 ? (WORD)default_drive : lr.BL - 1);
       if (lr.AL < 2)
       {
         if (get_cds(rc) == NULL)
@@ -1509,10 +1508,52 @@ dispatch:
       /* case 0x6d and above not implemented : see default; return AL=0 */
 
 #ifdef WITHFAT32
-      /* LFN functions - fail with "function not supported" error code */
+      /* LFN functions - most fail with "function not supported" error */
     case 0x71:
-      lr.AL = 00;
-      goto error_carry;
+      switch (lr.AL)
+      {
+		  /* LFN get file info by handle */
+        case 0xa6: {
+          iregs saved_r;
+          sft FAR *s;
+          unsigned char idx;
+
+          /* is file handle (BX) valid */
+          if (r->BX >= psp->ps_maxfiles)
+          {
+            rc = DE_INVLDHNDL;
+            goto error_exit;
+          }
+		  /* get corresponding SFT for handle */
+          idx = psp->ps_filetab[r->BX];
+          s = idx_to_sft(idx);
+          if (s == (sft FAR *)-1)
+          {
+            rc = DE_INVLDHNDL;
+            goto error_exit;
+          }
+		  /* is file remote (call redirector) or local (unsupported)? */
+          if (!(s->sft_flags & SFT_FSHARED))
+            goto unsupp;    /* unsupported on local fs yet */
+          /* call to redirector */
+          saved_r = *r;
+          r->ES = FP_SEG(s);                   /* ES:DI -> sft */
+          r->DI = FP_OFF(s);
+          r->flags |= FLG_CARRY;
+          r->AX = 0x11a6;                      /* call redirector for LFN get file info by handle */
+          call_intr(0x2f, r);
+          if (!(r->flags & FLG_CARRY))
+            goto real_exit;
+          /* carry still set - unhandled */
+          *r = saved_r;
+          goto unsupp;
+          break;
+        }
+        default:
+		  SET_CARRY_FLAG();
+          goto unsupp;
+      }
+      break;
 
       /* DOS 7.0+ FAT32 extended functions */
     case 0x73:
@@ -1562,6 +1603,21 @@ dispatch:
 #endif
   }
   goto exit_dispatch;
+unsupp:
+  {
+    UWORD flg = r->flags;
+#ifdef DEBUG
+    printf("Unsupported INT21 AH = 0x%x, AL = 0x%x.\n", lr.AH, lr.AL);
+#endif
+    r->flags |= FLG_CARRY;
+    call_intr_func(prev_int21_handler, r);
+    if (!(r->flags & FLG_CARRY))
+      goto real_exit;
+    /* carry still set - unhandled */
+    r->flags = flg;
+    lr.AL = 0;
+    goto exit_dispatch;
+  }
 long_check:
   if (lrc >= SUCCESS)
   {

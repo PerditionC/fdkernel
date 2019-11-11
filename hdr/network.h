@@ -28,6 +28,9 @@
 /* Cambridge, MA 02139, USA.                                    */
 /****************************************************************/
 
+#ifndef NETWORK_H
+#define NETWORK_H
+
 /* Defines for remote access functions */
 #define REM_RMDIR       0x1101
 #define REM_MKDIR       0x1103
@@ -78,3 +81,9 @@ struct remote_fileattrib {
   UWORD rfa_time;
   UWORD rfa_date;
 };
+
+struct remote_lock_unlock {
+    UDWORD ofs, len;
+};
+
+#endif /* NETWORK_H */
