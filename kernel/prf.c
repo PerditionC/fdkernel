@@ -173,7 +173,8 @@ STATIC VOID handle_char(COUNT c)
 STATIC void ltob(LONG n, BYTE SSFAR * s, COUNT base)
 {
   ULONG u;
-  BYTE SSFAR *p, SSFAR *q;
+  BYTE SSFAR *p;
+  BYTE SSFAR *q;
   int c;
 
   u = n;
